@@ -1,0 +1,425 @@
+-- ============================================================
+-- NOXTR Auto Clicker v13
+-- Un toque al botón rojo = cierra TODO el script
+-- ============================================================
+
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+-- ============================================================
+-- CONFIGURACIÓN
+-- ============================================================
+local CPS_DEFAULT = 10
+
+-- ============================================================
+-- VARIABLES GLOBALES
+-- ============================================================
+local scriptActivo = true
+local teclasCreadas = {}
+local contadorTeclas = 0
+
+-- ============================================================
+-- GUI PRINCIPAL
+-- ============================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NOXTR_AutoClicker"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ============================================================
+-- FUNCIÓN: CLIC EN POSICIÓN
+-- ============================================================
+local function HacerClicEn(x, y)
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+    task.wait(0.01)
+    VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+end
+
+-- ============================================================
+-- CONTADOR
+-- ============================================================
+local ContadorLabel = Instance.new("TextLabel")
+ContadorLabel.Size = UDim2.new(0, 150, 0, 22)
+ContadorLabel.Position = UDim2.new(0, 50, 0, 55)
+ContadorLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ContadorLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+ContadorLabel.Font = Enum.Font.GothamBold
+ContadorLabel.TextSize = 13
+ContadorLabel.Text = "Auto Clickers: 0"
+ContadorLabel.BorderSizePixel = 0
+ContadorLabel.Parent = ScreenGui
+
+local CornerCont = Instance.new("UICorner")
+CornerCont.CornerRadius = UDim.new(0, 8)
+CornerCont.Parent = ContadorLabel
+
+local function ActualizarContador()
+    ContadorLabel.Text = "Auto Clickers: " .. #teclasCreadas
+end
+
+-- ============================================================
+-- FUNCIÓN: CREAR AUTO CLICKER
+-- ============================================================
+local function CrearTecla()
+    if not scriptActivo then return end
+    
+    contadorTeclas += 1
+    local id = contadorTeclas
+    
+    local posY = 160 + ((id - 1) % 6) * 80
+    local posX = 50 + math.floor((id - 1) / 6) * 80
+    
+    local Tecla = Instance.new("TextButton")
+    Tecla.Name = "AutoClicker_" .. id
+    Tecla.Size = UDim2.new(0, 70, 0, 70)
+    Tecla.Position = UDim2.new(0, posX, 0, posY)
+    Tecla.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Tecla.Text = "▶"
+    Tecla.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Tecla.Font = Enum.Font.GothamBold
+    Tecla.TextSize = 28
+    Tecla.BorderSizePixel = 0
+    Tecla.Active = true
+    Tecla.AutoButtonColor = false
+    Tecla.Parent = ScreenGui
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(1, 0)
+    Corner.Parent = Tecla
+    
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Color3.fromRGB(220, 40, 40)
+    Stroke.Thickness = 3
+    Stroke.Parent = Tecla
+    
+    local CpsLabel = Instance.new("TextLabel")
+    CpsLabel.Size = UDim2.new(0, 70, 0, 18)
+    CpsLabel.Position = UDim2.new(0, 0, 0, -20)
+    CpsLabel.BackgroundTransparency = 1
+    CpsLabel.Text = CPS_DEFAULT .. " CPS"
+    CpsLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    CpsLabel.Font = Enum.Font.Gotham
+    CpsLabel.TextSize = 12
+    CpsLabel.Parent = Tecla
+    
+    local estado = {
+        id = id,
+        activo = false,
+        cps = CPS_DEFAULT,
+        intervalo = 1 / CPS_DEFAULT,
+        dragging = false,
+        dragStart = nil,
+        startPos = nil,
+        moved = false,
+    }
+    
+    local function ObtenerCentro()
+        local pos = Tecla.AbsolutePosition
+        local size = Tecla.AbsoluteSize
+        return pos.X + size.X / 2, pos.Y + size.Y / 2
+    end
+    
+    local function clampPosition(pos)
+        local viewport = workspace.CurrentCamera.ViewportSize
+        local btnSize = Tecla.AbsoluteSize
+        local x = math.clamp(pos.X.Offset, 0, viewport.X - btnSize.X)
+        local y = math.clamp(pos.Y.Offset, 0, viewport.Y - btnSize.Y)
+        return UDim2.new(0, x, 0, y)
+    end
+    
+    Tecla.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            estado.dragging = true
+            estado.moved = false
+            estado.dragStart = input.Position
+            estado.startPos = Tecla.Position
+        end
+    end)
+    
+    local connChanged = UserInputService.InputChanged:Connect(function(input)
+        if not estado.dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - estado.dragStart
+            if math.abs(delta.X) > 8 or math.abs(delta.Y) > 8 then
+                estado.moved = true
+            end
+            local newPos = UDim2.new(
+                estado.startPos.X.Scale, estado.startPos.X.Offset + delta.X,
+                estado.startPos.Y.Scale, estado.startPos.Y.Offset + delta.Y
+            )
+            Tecla.Position = clampPosition(newPos)
+        end
+    end)
+    
+    local connEnded = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            estado.dragging = false
+        end
+    end)
+    
+    estado.conns = {connChanged, connEnded}
+    
+    task.spawn(function()
+        while Tecla.Parent and scriptActivo do
+            if estado.activo then
+                local t0 = tick()
+                local x, y = ObtenerCentro()
+                HacerClicEn(x, y)
+                local elapsed = tick() - t0
+                local waitTime = estado.intervalo - elapsed
+                if waitTime > 0 then
+                    task.wait(waitTime)
+                end
+            else
+                task.wait(0.05)
+            end
+        end
+    end)
+    
+    Tecla.MouseButton1Click:Connect(function()
+        if estado.moved or not scriptActivo then return end
+        
+        estado.activo = not estado.activo
+        if estado.activo then
+            Tecla.Text = "⏹"
+            Stroke.Color = Color3.fromRGB(90, 220, 130)
+            Stroke.Thickness = 3
+        else
+            Tecla.Text = "▶"
+            Stroke.Color = Color3.fromRGB(220, 40, 40)
+            Stroke.Thickness = 3
+        end
+    end)
+    
+    Tecla.MouseButton2Click:Connect(function()
+        if not scriptActivo then return end
+        local valores = {5, 10, 15, 20, 30, 50, 100}
+        local idx = 1
+        for i, v in ipairs(valores) do
+            if v == estado.cps then idx = i break end
+        end
+        idx = idx % #valores + 1
+        estado.cps = valores[idx]
+        estado.intervalo = 1 / estado.cps
+        CpsLabel.Text = estado.cps .. " CPS"
+    end)
+    
+    table.insert(teclasCreadas, {
+        boton = Tecla,
+        estado = estado,
+    })
+    
+    ActualizarContador()
+    return Tecla
+end
+
+-- ============================================================
+-- FUNCIÓN: QUITAR LA ÚLTIMA TECLA
+-- ============================================================
+local function QuitarUltimaTecla()
+    if #teclasCreadas == 0 then
+        print("[NOXTR] No hay auto clickers para quitar")
+        return
+    end
+    
+    local ultima = table.remove(teclasCreadas)
+    
+    if ultima.estado.conns then
+        for _, conn in ipairs(ultima.estado.conns) do
+            pcall(function() conn:Disconnect() end)
+        end
+    end
+    
+    ultima.boton:Destroy()
+    ActualizarContador()
+end
+
+-- ============================================================
+-- BOTÓN "+" (AGREGAR)
+-- ============================================================
+local BotonAdd = Instance.new("TextButton")
+BotonAdd.Name = "BotonAdd"
+BotonAdd.Size = UDim2.new(0, 60, 0, 60)
+BotonAdd.Position = UDim2.new(0, 50, 0, 80)
+BotonAdd.BackgroundColor3 = Color3.fromRGB(30, 120, 200)
+BotonAdd.Text = "+"
+BotonAdd.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotonAdd.Font = Enum.Font.GothamBold
+BotonAdd.TextSize = 34
+BotonAdd.BorderSizePixel = 0
+BotonAdd.Active = true
+BotonAdd.AutoButtonColor = false
+BotonAdd.Parent = ScreenGui
+
+local CornerAdd = Instance.new("UICorner")
+CornerAdd.CornerRadius = UDim.new(1, 0)
+CornerAdd.Parent = BotonAdd
+
+local StrokeAdd = Instance.new("UIStroke")
+StrokeAdd.Color = Color3.fromRGB(80, 180, 255)
+StrokeAdd.Thickness = 2
+StrokeAdd.Parent = BotonAdd
+
+-- ============================================================
+-- BOTÓN "−" (QUITAR)
+-- ============================================================
+local BotonQuitar = Instance.new("TextButton")
+BotonQuitar.Name = "BotonQuitar"
+BotonQuitar.Size = UDim2.new(0, 60, 0, 60)
+BotonQuitar.Position = UDim2.new(0, 120, 0, 80)
+BotonQuitar.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+BotonQuitar.Text = "−"
+BotonQuitar.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotonQuitar.Font = Enum.Font.GothamBold
+BotonQuitar.TextSize = 34
+BotonQuitar.BorderSizePixel = 0
+BotonQuitar.Active = true
+BotonQuitar.AutoButtonColor = false
+BotonQuitar.Parent = ScreenGui
+
+local CornerQuitar = Instance.new("UICorner")
+CornerQuitar.CornerRadius = UDim.new(1, 0)
+CornerQuitar.Parent = BotonQuitar
+
+local StrokeQuitar = Instance.new("UIStroke")
+StrokeQuitar.Color = Color3.fromRGB(255, 90, 90)
+StrokeQuitar.Thickness = 2
+StrokeQuitar.Parent = BotonQuitar
+
+-- ============================================================
+-- BOTÓN "X" (CERRAR SCRIPT COMPLETO)
+-- ============================================================
+local BotonCerrar = Instance.new("TextButton")
+BotonCerrar.Name = "BotonCerrar"
+BotonCerrar.Size = UDim2.new(0, 50, 0, 50)
+BotonCerrar.Position = UDim2.new(1, -70, 0, 20)
+BotonCerrar.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
+BotonCerrar.Text = "✕"
+BotonCerrar.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotonCerrar.Font = Enum.Font.GothamBold
+BotonCerrar.TextSize = 28
+BotonCerrar.BorderSizePixel = 0
+BotonCerrar.Active = true
+BotonCerrar.AutoButtonColor = false
+BotonCerrar.Parent = ScreenGui
+
+local CornerCerrar = Instance.new("UICorner")
+CornerCerrar.CornerRadius = UDim.new(1, 0)
+CornerCerrar.Parent = BotonCerrar
+
+local StrokeCerrar = Instance.new("UIStroke")
+StrokeCerrar.Color = Color3.fromRGB(255, 100, 100)
+StrokeCerrar.Thickness = 2
+StrokeCerrar.Parent = BotonCerrar
+
+-- ============================================================
+-- FUNCIÓN: CERRAR SCRIPT COMPLETO
+-- ============================================================
+local function CerrarScript()
+    scriptActivo = false
+    
+    -- Parar todos los auto clickers
+    for _, item in ipairs(teclasCreadas) do
+        item.estado.activo = false
+        if item.estado.conns then
+            for _, conn in ipairs(item.estado.conns) do
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+    end
+    
+    -- Destruir botones y limpiar
+    for _, item in ipairs(teclasCreadas) do
+        pcall(function() item.boton:Destroy() end)
+    end
+    table.clear(teclasCreadas)
+    
+    -- Destruir GUI completa (elimina TODO de golpe)
+    pcall(function() ScreenGui:Destroy() end)
+    
+    print("[NOXTR] ✅ Script cerrado. Todo eliminado.")
+end
+
+-- ============================================================
+-- ARRASTRE GENÉRICO
+-- ============================================================
+local function HacerArrastrable(boton)
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    local moved = false
+    
+    boton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            dragStart = input.Position
+            startPos = boton.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            if math.abs(delta.X) > 8 or math.abs(delta.Y) > 8 then
+                moved = true
+            end
+            boton.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    return function() return moved end
+end
+
+local addMoved = HacerArrastrable(BotonAdd)
+local quitarMoved = HacerArrastrable(BotonQuitar)
+
+-- ============================================================
+-- ACCIONES DE BOTONES
+-- ============================================================
+BotonAdd.MouseButton1Click:Connect(function()
+    if addMoved() or not scriptActivo then return end
+    CrearTecla()
+end)
+
+BotonQuitar.MouseButton1Click:Connect(function()
+    if quitarMoved() or not scriptActivo then return end
+    QuitarUltimaTecla()
+end)
+
+-- ❌ UN SOLO TOQUE AL BOTÓN X = CIERRA TODO
+BotonCerrar.MouseButton1Click:Connect(function()
+    CerrarScript()
+end)
+
+-- ============================================================
+-- CREAR PRIMERA TECLA AL INICIAR
+-- ============================================================
+CrearTecla()
+
+print("[NOXTR v13] Cargado.")
+print("  🔴⚫ Botón negro → clickea en SU POSICIÓN")
+print("  🟢 Borde verde → activo")
+print("  ➕ Azul → agregar auto clicker")
+print("  ➖ Rojo → quitar último")
+print("  ❌ X roja (esquina) → CIERRA TODO EL SCRIPT (1 toque)")
